@@ -10,7 +10,7 @@ import { AlertsTab } from './AlertsTab';
 import { TransactionsTab } from './TransactionsTab';
 
 export function AdminDashboard() {
-  const { user, isSuperAdmin } = useAuth();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'users' | 'alerts' | 'transactions'>('users');
   const [stats, setStats] = useState<any>(null);
 
@@ -24,14 +24,9 @@ export function AdminDashboard() {
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
           <div className="p-2 bg-blue-600/20 rounded-xl border border-blue-500/30">
-            <Shield className="size-5 text-blue-400" />
+            <Crown className="size-5 text-blue-400" />
           </div>
           <h1 className="text-2xl font-bold">Panneau d'Administration</h1>
-          {isSuperAdmin && (
-            <span className="flex items-center gap-1.5 px-3 py-1 bg-yellow-500/20 border border-yellow-500/40 rounded-full text-yellow-400 text-xs font-semibold">
-              <Crown className="size-3" /> SuperAdmin
-            </span>
-          )}
         </div>
         <p className="text-gray-400 text-sm ml-12">
           Connecté en tant que <span className="text-white font-medium">{user?.email}</span>
@@ -61,8 +56,8 @@ export function AdminDashboard() {
             key={key}
             onClick={() => setActiveTab(key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm ${activeTab === key
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+              : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
           >
             <Icon className="size-4" />

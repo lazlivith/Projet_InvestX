@@ -73,14 +73,14 @@ export function TransactionsTab() {
                     <td className="p-3 text-gray-500 text-xs whitespace-nowrap">{new Date(t.executed_at).toLocaleString('fr-FR')}</td>
                     <td className="p-3 text-gray-300">{t.user_email}</td>
                     <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${t.type === 'BUY' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                        {t.type}
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${t.side?.toLowerCase() === 'buy' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {t.side?.toUpperCase()}
                       </span>
                     </td>
                     <td className="p-3 font-bold text-white">{t.ticker}</td>
                     <td className="p-3 font-mono">{t.quantity}</td>
-                    <td className="p-3 font-mono text-gray-300">${parseFloat(t.execution_price || 0).toFixed(2)}</td>
-                    <td className="p-3 font-mono font-semibold text-white">${(parseFloat(t.execution_price || 0) * parseFloat(t.quantity || 0)).toFixed(2)}</td>
+                    <td className="p-3 font-mono text-gray-300">${parseFloat(t.price_per_unit || 0).toFixed(2)}</td>
+                    <td className="p-3 font-mono font-semibold text-white">${parseFloat(t.total_amount || 0).toFixed(2)}</td>
                   </tr>
                 ))}
                 {transactions.length === 0 && (

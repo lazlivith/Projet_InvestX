@@ -8,7 +8,7 @@ class ProfileService {
             throw new Error('User not found.');
         }
         // Exclure les informations sensibles comme le mot de passe et le refresh_token
-        const { password, refresh_token, ...profile } = user;
+        const { password_hash, refresh_token, ...profile } = user;
         return profile;
     }
 
@@ -30,13 +30,13 @@ class ProfileService {
         if (!updatedUser) {
             throw new Error('Failed to update profile.');
         }
-        const { password, refresh_token, ...profile } = updatedUser;
+        const { password_hash, refresh_token, ...profile } = updatedUser;
         return profile;
     }
 
     async changePassword(userId, oldPassword, newPassword) {
         const user = await userRepository.findById(userId);
-        if (!user || !(await bcrypt.compare(oldPassword, user.password))) {
+        if (!user || !(await bcrypt.compare(oldPassword, user.password_hash))) {
             throw new Error('Invalid old password.');
         }
         if (newPassword.length < 8) { // Exemple de politique de mot de passe

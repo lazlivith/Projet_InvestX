@@ -2,15 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminAPI } from '@/app/services/api';
 import { useAuth } from '@/app/context/AuthContext';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Search } from 'lucide-react';
+import { CheckCircle, XCircle, Search, History } from 'lucide-react';
 import { RoleBadge, ConfirmModal } from './AdminShared';
 
-export function UsersTab() {
-  const { user: currentUser, isSuperAdmin } = useAuth();
+interface UsersTabProps {
+  onViewTransactions?: (userId: string) => void;
+}
+
+export function UsersTab({ onViewTransactions }: UsersTabProps) {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<{ userId: string; role: string; name: string } | null>(null);
+
+  const isSuperAdmin = currentUser?.role === 'superadmin';
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -55,7 +61,7 @@ export function UsersTab() {
 
   const filtered = users.filter(u =>
     u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.username?.toLowerCase().includes(search.toLowerCase())
+    u.name?.toLowerCase().includes(search.toLowerCase())
   );
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -86,6 +92,7 @@ export function UsersTab() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-gray-800 text-gray-400">
+              <th className="p-3 w-12"></th>
               <th className="p-3">Utilisateur</th>
               <th className="p-3">Email</th>
               <th className="p-3">Rôle</th>
@@ -93,6 +100,7 @@ export function UsersTab() {
               <th className="p-3">Statut</th>
               {isSuperAdmin && <th className="p-3">Changer Rôle</th>}
               <th className="p-3">Actif</th>
+              <th className="p-3 text-center">Historique</th>
             </tr>
           </thead>
           <tbody>
@@ -102,13 +110,22 @@ export function UsersTab() {
               const canEdit = !isSelf && !isTargetSuperAdmin;
               return (
                 <tr key={u.id} className={`border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors ${isSelf ? 'opacity-60' : ''}`}>
+                  <td className="p-3">
+                    <div className="size-8 rounded-full bg-slate-800 border border-gray-700 overflow-hidden flex items-center justify-center text-[10px] font-bold text-gray-400">
+                      {u.avatar_url ? (
+                        <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        u.name?.substring(0, 2).toUpperCase()
+                      )}
+                    </div>
+                  </td>
                   <td className="p-3 font-medium text-white">
-                    {u.username}
+                    {u.name}
                     {isSelf && <span className="ml-2 text-xs text-gray-500">(vous)</span>}
                   </td>
                   <td className="p-3 text-gray-400">{u.email}</td>
                   <td className="p-3"><RoleBadge role={u.role} /></td>
-                  <td className="p-3 font-mono text-green-400">${parseFloat(u.cash_available || 0).toLocaleString()}</td>
+                  <td className="p-3 font-mono text-green-400">${parseFloat(u.balance || 0).toLocaleString()}</td>
                   <td className="p-3">
                     {u.is_active !== false
                       ? <span className="flex items-center gap-1 text-green-400 text-xs"><CheckCircle className="size-3" />Actif</span>
@@ -119,7 +136,7 @@ export function UsersTab() {
                       {canEdit ? (
                         <select
                           value={u.role}
-                          onChange={e => handleRoleChange(u.id, e.target.value, u.username)}
+                          onChange={e => handleRoleChange(u.id, e.target.value, u.name)}
                           className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm outline-none hover:border-blue-500 transition-colors cursor-pointer"
                         >
                           <option value="client">Client</option>
@@ -133,10 +150,10 @@ export function UsersTab() {
                   <td className="p-3">
                     {canEdit ? (
                       <button
-                        onClick={() => handleToggleActive(u.id, u.is_active !== false, u.username)}
+                        onClick={() => handleToggleActive(u.id, u.is_active !== false, u.name)}
                         className={`px-3 py-1 rounded text-xs font-medium transition-colors ${u.is_active !== false
-                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                            : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                          : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
                           }`}
                       >
                         {u.is_active !== false ? 'Désactiver' : 'Activer'}
@@ -144,6 +161,15 @@ export function UsersTab() {
                     ) : (
                       <span className="text-gray-600 text-xs">—</span>
                     )}
+                  </td>
+                  <td className="p-3 text-center">
+                    <button
+                      onClick={() => onViewTransactions?.(String(u.id))}
+                      className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-lg transition-all"
+                      title="Voir les transactions"
+                    >
+                      <History className="size-4" />
+                    </button>
                   </td>
                 </tr>
               );

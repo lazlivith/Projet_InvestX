@@ -20,10 +20,10 @@ import { Toaster } from 'sonner';
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TradingDashboard() {
-  const [activeTab, setActiveTab] = useState('trading');
+  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'admin' : 'trading');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [currentTicker, setCurrentTicker] = useState('AAPL');
-  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
 
   return (
     <div className="size-full flex flex-col bg-[#0f0f23] text-white">
@@ -46,10 +46,12 @@ function TradingDashboard() {
         {/* Onglets de navigation */}
         <div className="flex items-center gap-1">
           {[
-            { key: 'trading', label: 'Trading', Icon: BarChart3 },
-            { key: 'portfolio', label: 'Portfolio', Icon: Wallet },
-            { key: 'activity', label: 'Activité', Icon: Activity },
-          ].map(({ key, label, Icon }) => (
+            { key: 'trading', label: 'Trading', Icon: BarChart3, show: !isAdmin },
+            { key: 'portfolio', label: 'Portfolio', Icon: Wallet, show: !isAdmin },
+            { key: 'activity', label: 'Activité', Icon: Activity, show: true },
+          ]
+            .filter(tab => tab.show)
+            .map(({ key, label, Icon }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
@@ -72,8 +74,8 @@ function TradingDashboard() {
                   : 'text-yellow-400 hover:bg-yellow-900/30 border border-yellow-700/40'
               }`}
             >
-              {isSuperAdmin ? <Crown className="size-4" /> : <Shield className="size-4" />}
-              <span>{isSuperAdmin ? 'SuperAdmin' : 'Admin'}</span>
+              <Crown className="size-4" />
+              <span>Panneau d'Administration</span>
             </button>
           )}
         </div>

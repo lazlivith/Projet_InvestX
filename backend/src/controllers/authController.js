@@ -43,9 +43,11 @@ const register = async (req, res) => {
             message: "Utilisateur enregistré avec succès.",
             user: {
                 id: newUser.id,
-                name: newUser.username,
+                name: newUser.name,
                 email: newUser.email,
-                role: newUser.role
+                role: newUser.role,
+                preferred_currency: newUser.preferred_currency,
+                avatar_url: newUser.avatar_url || null
             }
         });
     } catch (error) {
@@ -78,9 +80,11 @@ const login = async (req, res) => {
             refreshToken,
             user: {
                 id: user.id,
-                name: user.username, // Use user.username since the DB column is username
+                name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                preferred_currency: user.preferred_currency,
+                avatar_url: user.avatar_url || null
             }
         });
     } catch (error) {

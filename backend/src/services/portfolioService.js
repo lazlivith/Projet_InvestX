@@ -12,8 +12,8 @@ class PortfolioService {
             .join('wallets', 'users.id', '=', 'wallets.user_id')
             .select(
                 'wallets.id as wallet_id',
-                'wallets.cash_available',
-                'wallets.currency as wallet_currency'
+                'wallets.cash_balance',
+                'users.preferred_currency as wallet_currency'
             )
             .where('users.id', userId)
             .first();
@@ -22,18 +22,18 @@ class PortfolioService {
             throw new Error('User or Wallet not found for this user.');
         }
 
-        const userPreferredCurrency = 'USD'; // Défini par défaut car la colonne preferred_currency n'existe pas encore
+        const userPreferredCurrency = userAndWallet.wallet_currency || 'USD';
         const walletCurrency = userAndWallet.wallet_currency || 'USD'; // Devise du cash dans le portefeuille
         const walletId = userAndWallet.wallet_id;
 
         // Convertir le cash disponible dans la devise préférée de l'utilisateur
         let cashAvailableInPreferredCurrency = await currencyService.convertAmount(
-            parseFloat(userAndWallet.cash_available),
+            parseFloat(userAndWallet.cash_balance),
             walletCurrency,
             userPreferredCurrency
         );
 
-        const positions = await db('positions').where({ wallet_id: walletId });
+        const positions = await db('portfolio_assets').where({ wallet_id: walletId });
 
         let totalEquity = cashAvailableInPreferredCurrency;
         let totalMarketValue = 0;
@@ -43,7 +43,7 @@ class PortfolioService {
             const quote = await quoteService.getQuote(position.ticker);
             const currentPriceUSD = parseFloat(quote.last); // Le prix de Finnhub est en USD
             const quantity = parseFloat(position.quantity);
-            const averagePurchasePrice = parseFloat(position.average_purchase_price);
+            const averagePurchasePrice = parseFloat(position.pump);
 
             const marketValueUSD = quantity * currentPriceUSD;
             const profitLossUSD = (currentPriceUSD - averagePurchasePrice) * quantity;
@@ -78,22 +78,23 @@ class PortfolioService {
 
     async getPortfolioHistory(userId) {
         // Récupère les instantanés historiques pour les graphiques
-        return db('portfolio_history')
-            .where({ user_id: userId })
-            .orderBy('timestamp', 'asc');
+        return db('portfolio_snapshots')
+            .join('wallets', 'portfolio_snapshots.wallet_id', '=', 'wallets.id')
+            .where('wallets.user_id', userId)
+            .orderBy('portfolio_snapshots.snapshot_date', 'asc');
     }
 
     async snapshotPortfolio(userId) {
         const summary = await this.getPortfolioSummary(userId);
-        await db('portfolio_history').insert({
-            id: crypto.randomUUID(),
-            user_id: userId,
-            cash_available: summary.cashAvailable,
-            total_market_value: summary.totalMarketValue,
+        const walletId = summary.positions[0]?.wallet_id;
+        if (!walletId) return;
+
+        await db('portfolio_snapshots').insert({
+            wallet_id: walletId,
+            cash_value: summary.cashAvailable,
+            assets_value: summary.totalMarketValue,
             total_equity: summary.totalEquity,
-            total_profit_loss: summary.totalProfitLoss,
-            timestamp: new Date(),
-            currency: summary.currency // Enregistrer la devise du snapshot
+            snapshot_date: new Date()
         });
         console.log(`[PortfolioService] Snapshot created for user ${userId}`);
     }

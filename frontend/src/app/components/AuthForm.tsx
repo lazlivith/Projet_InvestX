@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { TrendingUp } from 'lucide-react';
 
 export const AuthForm = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
@@ -26,6 +29,10 @@ export const AuthForm = () => {
     try {
       if (isLogin) {
         await login({ email: formData.email, password: formData.password });
+
+        // Récupère l'URL d'origine ou redirige vers le dashboard par défaut
+        const from = (location.state as any)?.from?.pathname || '/dashboard';
+        navigate(from, { replace: true });
       } else {
         await register(formData);
         setIsLogin(true);
@@ -33,7 +40,9 @@ export const AuthForm = () => {
         alert('Inscription réussie ! Veuillez vous connecter.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Une erreur est survenue');
+      const backendError = err.response?.data?.error;
+      const backendDetails = err.response?.data?.details;
+      setError(backendDetails ? `${backendError} : ${backendDetails}` : (backendError || 'Une erreur est survenue'));
     } finally {
       setLoading(false);
     }

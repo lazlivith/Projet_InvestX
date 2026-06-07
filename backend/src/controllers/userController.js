@@ -12,12 +12,14 @@ class UserController {
             }
             res.status(200).json({
                 id: user.id,
-                name: user.username,
+                name: user.name,
                 email: user.email,
                 role: user.role,
                 avatar_url: user.avatar_url || null,
+                preferred_currency: user.preferred_currency,
             });
         } catch (error) {
+            console.error("❌ Erreur getMe :", error.message);
             res.status(500).json({ error: "Erreur lors de la récupération du profil." });
         }
     }

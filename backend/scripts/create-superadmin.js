@@ -19,7 +19,7 @@ const db = require('../src/config/db');
 const SUPERADMIN_CONFIG = {
     name: 'SuperAdmin InvestX',
     email: process.env.SUPERADMIN_EMAIL || 'superadmin@investx.com',
-    password: process.env.SUPERADMIN_PASSWORD || 'SuperAdmin@2024!',
+    password: process.env.SUPERADMIN_PASSWORD || 'NewSecureDefaultPass!', // Mettez ici un nouveau mot de passe par défaut
 };
 
 async function createSuperAdmin() {
@@ -38,6 +38,7 @@ async function createSuperAdmin() {
                 // Promouvoir en superadmin si l'utilisateur existe avec un autre rôle
                 await db('users').where({ email: SUPERADMIN_CONFIG.email }).update({
                     role: 'superadmin',
+                    is_active: true, // S'assurer que le superadmin est actif
                     updated_at: new Date(),
                 });
                 console.log(`✅ Compte existant promu en SuperAdmin : ${SUPERADMIN_CONFIG.email}\n`);
@@ -49,29 +50,20 @@ async function createSuperAdmin() {
         const saltRounds = 12;
         const passwordHash = await bcrypt.hash(SUPERADMIN_CONFIG.password, saltRounds);
 
-        const userId = crypto.randomUUID();
-        const walletId = crypto.randomUUID();
-
         // Insérer en transaction atomique
         await db.transaction(async (tx) => {
-            await tx('users').insert({
-                id: userId,
-                username: SUPERADMIN_CONFIG.name,
+            const [user] = await tx('users').insert({
+                name: SUPERADMIN_CONFIG.name,
                 email: SUPERADMIN_CONFIG.email,
                 password_hash: passwordHash,
                 role: 'superadmin',
-                created_at: new Date(),
-                updated_at: new Date(),
-            });
+                preferred_currency: 'USD'
+            }).returning('*');
 
             // Créer également un portefeuille pour le superadmin
             await tx('wallets').insert({
-                id: walletId,
-                user_id: userId,
-                cash_available: 0.00, // Le superadmin n'a pas besoin de solde fictif
-                currency: 'USD',
-                created_at: new Date(),
-                updated_at: new Date(),
+                user_id: user.id,
+                cash_balance: 0.0000
             });
         });
 

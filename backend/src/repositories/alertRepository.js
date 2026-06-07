@@ -4,13 +4,10 @@ const crypto = require('crypto');
 class AlertRepository {
     async createAlert(userId, ticker, alertType, targetPrice) {
         const [alert] = await db('alerts').insert({
-            id: crypto.randomUUID(),
-            user_id: userId,
+            user_id: userId, // Correction: 'user_id' au lieu de 'userId'
             ticker: ticker.toUpperCase(),
-            alert_type: alertType,
-            target_price: targetPrice,
-            created_at: new Date(),
-            updated_at: new Date()
+            direction: alertType, // Correction: 'direction' au lieu de 'alert_type'
+            target_price: targetPrice
         }).returning('*');
         return alert;
     }
@@ -20,7 +17,7 @@ class AlertRepository {
     }
 
     async getActiveAlertsByTicker(ticker) {
-        return db('alerts').where({ ticker: ticker.toUpperCase(), is_active: true });
+        return db('alerts').where({ ticker: ticker.toUpperCase(), is_active: true }).select('*'); // Ajout de select('*') pour s'assurer de récupérer toutes les colonnes
     }
 
     async updateAlertStatus(alertId, isActive, triggeredAt = null) {

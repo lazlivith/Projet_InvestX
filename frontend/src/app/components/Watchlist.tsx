@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Star } from 'lucide-react';
 import { socketService, PriceUpdate } from '../services/socket';
 
@@ -37,58 +37,60 @@ export function Watchlist({ onStockSelect }: WatchlistProps) {
       isFavorite: true,
     }))
   );
+  const [search, setSearch] = useState('');
   const [selectedStock, setSelectedStock] = useState<string>('AAPL');
-  const [initialPrices, setInitialPrices] = useState<Map<string, number>>(new Map());
+  // Utilisation d'une Ref pour stocker les prix de référence sans déclencher de cycle de re-souscription
+  const sessionStartPrices = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     socketService.connect();
 
-    const updateHandlers = stockInfo.map((info) => {
-      const handler = (data: PriceUpdate) => {
-        setStocks((prevStocks) =>
-          prevStocks.map((stock) => {
-            if (stock.symbol === data.ticker) {
-              const currentPrice = parseFloat(data.last);
-              const bid = parseFloat(data.bid);
-              const ask = parseFloat(data.ask);
+    const handler = (data: PriceUpdate) => {
+      setStocks((prevStocks) =>
+        prevStocks.map((stock) => {
+          if (stock.symbol === data.ticker) {
+            const currentPrice = parseFloat(data.last);
 
-              setInitialPrices((prev) => {
-                if (!prev.has(data.ticker)) {
-                  const newMap = new Map(prev);
-                  newMap.set(data.ticker, currentPrice);
-                  return newMap;
-                }
-                return prev;
-              });
-
-              const initialPrice = initialPrices.get(data.ticker) || currentPrice;
-              const change = currentPrice - initialPrice;
-              const changePercent = (change / initialPrice) * 100;
-
-              return {
-                ...stock,
-                price: currentPrice,
-                bid,
-                ask,
-                change: parseFloat(change.toFixed(2)),
-                changePercent: parseFloat(changePercent.toFixed(2)),
-              };
+            // Capture du prix d'ouverture de session pour le calcul du % de variation
+            if (!sessionStartPrices.current.has(data.ticker)) {
+              sessionStartPrices.current.set(data.ticker, currentPrice);
             }
-            return stock;
-          })
-        );
-      };
 
+            const initialPrice = sessionStartPrices.current.get(data.ticker) || currentPrice;
+            const change = currentPrice - initialPrice;
+            const changePercent = initialPrice !== 0 ? (change / initialPrice) * 100 : 0;
+
+            return {
+              ...stock,
+              price: currentPrice,
+              bid: parseFloat(data.bid),
+              ask: parseFloat(data.ask),
+              change: parseFloat(change.toFixed(2)),
+              changePercent: parseFloat(changePercent.toFixed(2)),
+            };
+          }
+          return stock;
+        })
+      );
+    };
+
+    stockInfo.forEach((info) => {
       socketService.subscribe(info.symbol, handler);
-      return { symbol: info.symbol, handler };
     });
 
     return () => {
-      updateHandlers.forEach(({ symbol, handler }) => {
-        socketService.unsubscribe(symbol, handler);
+      stockInfo.forEach((info) => {
+        socketService.unsubscribe(info.symbol, handler);
       });
     };
-  }, [initialPrices]);
+  }, []); // Dépendances vides pour maintenir une connexion stable
+
+  const filteredStocks = useMemo(() => {
+    return stocks.filter(stock =>
+      stock.symbol.toLowerCase().includes(search.toLowerCase()) ||
+      stock.name.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [stocks, search]);
 
   const toggleFavorite = (symbol: string) => {
     setStocks((prevStocks) =>
@@ -112,18 +114,19 @@ export function Watchlist({ onStockSelect }: WatchlistProps) {
         <input
           type="text"
           placeholder="Rechercher un symbole..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           className="w-full px-3 py-2 bg-[#0f0f23] border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
         />
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {stocks.map((stock) => (
+        {filteredStocks.map((stock) => (
           <div
             key={stock.symbol}
             onClick={() => handleStockClick(stock.symbol)}
-            className={`p-3 border-b border-gray-800 cursor-pointer transition-colors hover:bg-[#0f0f23] ${
-              selectedStock === stock.symbol ? 'bg-[#0f0f23] border-l-4 border-l-blue-500' : ''
-            }`}
+            className={`p-3 border-b border-gray-800 cursor-pointer transition-colors hover:bg-[#0f0f23] ${selectedStock === stock.symbol ? 'bg-[#0f0f23] border-l-4 border-l-blue-500' : ''
+              }`}
           >
             <div className="flex items-start justify-between mb-1">
               <div className="flex-1">
@@ -136,9 +139,8 @@ export function Watchlist({ onStockSelect }: WatchlistProps) {
                     className="p-1 hover:bg-gray-700 rounded transition-colors"
                   >
                     <Star
-                      className={`size-3 ${
-                        stock.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'
-                      }`}
+                      className={`size-3 ${stock.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-gray-500'
+                        }`}
                     />
                   </button>
                   <span className="font-semibold">{stock.symbol}</span>
@@ -150,9 +152,8 @@ export function Watchlist({ onStockSelect }: WatchlistProps) {
                   {stock.price > 0 ? `$${stock.price.toFixed(2)}` : 'Chargement...'}
                 </div>
                 <div
-                  className={`text-xs flex items-center gap-1 ${
-                    stock.change >= 0 ? 'text-green-500' : 'text-red-500'
-                  }`}
+                  className={`text-xs flex items-center gap-1 ${stock.change >= 0 ? 'text-green-500' : 'text-red-500'
+                    }`}
                 >
                   {stock.change >= 0 ? (
                     <TrendingUp className="size-3" />

@@ -14,21 +14,21 @@ class AdminController {
     async getAllUsers(req, res) {
         try {
             const users = await db('users')
-                .join('wallets', 'users.id', '=', 'wallets.user_id')
+                .leftJoin('wallets', 'users.id', 'wallets.user_id')
+                .whereNull('users.deleted_at')
                 .select(
-                    'users.id',
-                    'users.username',
+                    'users.id as id',
+                    'users.name',
                     'users.email',
                     'users.role',
-                    'users.is_active',
                     'users.created_at',
-                    'wallets.cash_available',
-                    'wallets.currency'
+                    'users.preferred_currency',
+                    'wallets.cash_balance as balance'
                 )
                 .orderBy('users.created_at', 'desc');
             res.status(200).json(users);
         } catch (error) {
-            console.error('[AdminController.getAllUsers]', error.message);
+            console.error('❌ [AdminController.getAllUsers] Error:', error.message);
             res.status(500).json({ error: "Erreur lors de la récupération des utilisateurs." });
         }
     }
@@ -48,7 +48,10 @@ class AdminController {
             }
 
             // 2. Récupérer la cible pour vérifier son rôle actuel
-            const targetUser = await db('users').where({ id }).select('id', 'username', 'email', 'role').first();
+            const targetUser = await db('users')
+                .where({ id })
+                .whereNull('deleted_at')
+                .select('id', 'name', 'email', 'role').first();
             if (!targetUser) {
                 return res.status(404).json({ error: "Utilisateur introuvable." });
             }
@@ -80,14 +83,9 @@ class AdminController {
                 updateData.role = role;
             }
 
-            // 5. Modification du statut actif/inactif
-            if (is_active !== undefined) {
-                updateData.is_active = is_active;
-            }
-
             await db('users').where({ id }).update(updateData);
 
-            res.status(200).json({ message: `Utilisateur ${targetUser.username} mis à jour avec succès.` });
+            res.status(200).json({ message: `Utilisateur ${targetUser.name} mis à jour avec succès.` });
         } catch (error) {
             console.error('[AdminController.updateUser]', error.message);
             res.status(500).json({ error: "Erreur lors de la mise à jour de l'utilisateur." });
@@ -100,25 +98,60 @@ class AdminController {
     async getAllAlerts(req, res) {
         try {
             const alerts = await db('alerts')
-                .join('users', 'alerts.user_id', '=', 'users.id')
-                .select('alerts.*', 'users.email as user_email', 'users.username as user_name')
+                // Correction: Cast des IDs en TEXT pour autoriser la jointure UUID vs BIGINT
+                .join('users', db.raw('CAST(alerts.user_id AS TEXT)'), '=', db.raw('CAST(users.id AS TEXT)'))
+                .select(
+                    'alerts.*',
+                    'users.name as user_name',
+                    'users.email as user_email'
+                )
                 .orderBy('alerts.created_at', 'desc');
             res.status(200).json(alerts);
         } catch (error) {
-            console.error('[AdminController.getAllAlerts]', error.message);
+            console.error('❌ [AdminController.getAllAlerts] Error:', error.message);
             res.status(500).json({ error: "Erreur lors de la récupération des alertes." });
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Supprimer un utilisateur (Protection contre l'auto-suppression)
+    // ─────────────────────────────────────────────────────────────────────────
+    async deleteUser(req, res) {
+        try {
+            const { id } = req.params;
+            const requestingUser = req.user; // Injecté par authenticateToken
+
+            // Empêcher l'admin de se supprimer lui-même
+            if (String(requestingUser.id) === String(id)) {
+                return res.status(403).json({ error: "Action interdite : vous ne pouvez pas supprimer votre propre compte." });
+            }
+
+            const deleted = await db('users')
+                .where({ id })
+                .whereNull('deleted_at')
+                .update({ deleted_at: new Date(), is_active: false });
+
+            if (!deleted) {
+                return res.status(404).json({ error: "Utilisateur introuvable." });
+            }
+
+            res.status(200).json({ message: "Utilisateur supprimé avec succès." });
+        } catch (error) {
+            console.error('❌ [AdminController.deleteUser] Error:', error.message);
+            res.status(500).json({ error: "Erreur lors de la suppression de l'utilisateur." });
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Journal d'Audit : toutes les transactions
     // ─────────────────────────────────────────────────────────────────────────
-    async getTransactionLogs(req, res) {
+    async getAllTransactions(req, res) {
         try {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 25;
             const offset = (page - 1) * limit;
             const type = req.query.type; // 'BUY' | 'SELL' | undefined
+            const userId = req.query.userId;
 
             let query = db('transactions')
                 .join('wallets', 'transactions.wallet_id', '=', 'wallets.id')
@@ -126,17 +159,25 @@ class AdminController {
                 .select(
                     'transactions.*',
                     'users.email as user_email',
-                    'users.username as user_name',
-                    'wallets.currency'
+                    'users.name as user_name',
+                    'users.preferred_currency as currency'
                 )
                 .orderBy('executed_at', 'desc');
 
             if (type && ['BUY', 'SELL'].includes(type.toUpperCase())) {
-                query = query.where('transactions.type', type.toUpperCase());
+                query = query.where('transactions.side', type.toLowerCase()); // Correction: filter by 'side' and use lowercase
             }
 
-            const [{ count }] = await db('transactions').count('id as count');
-            const transactions = await query.limit(limit).offset(offset);
+            if (userId) {
+                query = query.where('users.id', userId);
+            }
+
+            // Utilisation de transactions.id pour lever l'ambiguïté SQL lors du comptage et de la sélection
+            const countQuery = query.clone().clearSelect().clearOrder();
+            const totalResult = await countQuery.count('transactions.id as count').first();
+
+            const count = totalResult ? parseInt(totalResult.count) : 0;
+            const transactions = await query.clone().limit(limit).offset(offset);
 
             res.status(200).json({
                 data: transactions,
@@ -148,7 +189,7 @@ class AdminController {
                 },
             });
         } catch (error) {
-            console.error('[AdminController.getTransactionLogs]', error.message);
+            console.error('❌ [AdminController.getAllTransactions] Error:', error.message);
             res.status(500).json({ error: "Erreur lors de la récupération des logs." });
         }
     }
@@ -173,14 +214,22 @@ class AdminController {
     // ─────────────────────────────────────────────────────────────────────────
     // Statistiques globales de la plateforme (KPI Dashboard)
     // ─────────────────────────────────────────────────────────────────────────
-    async getPlatformStats(req, res) {
+    async getGlobalStats(req, res) {
         try {
             const [totalUsers] = await db('users').count('id as count');
             const [totalAdmins] = await db('users').where({ role: 'admin' }).count('id as count');
             const [totalClients] = await db('users').where({ role: 'client' }).count('id as count');
             const [totalTransactions] = await db('transactions').count('id as count');
-            const [volumeResult] = await db('transactions').sum('execution_price as total');
-            const [totalAlerts] = await db('alerts').where({ is_active: true }).count('id as count');
+            const [volumeResult] = await db('transactions').sum('total_amount as total');
+            const [totalAlerts] = await db('alerts').count('id as count');
+
+            // Statistique du volume par jour (7 derniers jours)
+            const dailyVolume = await db('transactions')
+                .select(db.raw("TO_CHAR(executed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') as date"))
+                .sum('total_amount as volume')
+                .groupBy('date')
+                .orderBy('date', 'desc')
+                .limit(7);
 
             res.status(200).json({
                 totalUsers: parseInt(totalUsers.count),
@@ -189,9 +238,10 @@ class AdminController {
                 totalTransactions: parseInt(totalTransactions.count),
                 globalVolume: parseFloat(volumeResult.total) || 0,
                 activeAlerts: parseInt(totalAlerts.count),
+                dailyVolume: dailyVolume.map(v => ({ date: v.date, volume: parseFloat(v.volume) }))
             });
         } catch (error) {
-            console.error('[AdminController.getPlatformStats]', error.message);
+            console.error('❌ [AdminController.getGlobalStats] Error:', error.message);
             res.status(500).json({ error: "Erreur lors du calcul des statistiques." });
         }
     }

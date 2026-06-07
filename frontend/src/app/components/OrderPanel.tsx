@@ -75,7 +75,7 @@ export function OrderPanel({ currentTicker = 'AAPL' }: OrderPanelProps) {
       toast.success(
         message || `${orderType === 'BUY' ? 'Achat' : 'Vente'} exécuté(e)`,
         {
-          description: orderClass === 'MARKET' 
+          description: orderClass === 'MARKET'
             ? `${data.quantity} ${data.ticker} @ $${data.executedPrice}`
             : `${data.quantity} ${data.ticker} Limite @ $${data.limitPrice}`,
         }
@@ -84,8 +84,9 @@ export function OrderPanel({ currentTicker = 'AAPL' }: OrderPanelProps) {
       setQuantity('100');
       setLimitPrice('');
     } catch (error: any) {
-      const message = error.response?.data?.message || error.response?.data?.error || 'Échec de l\'ordre';
-      toast.error('Erreur', { description: message });
+      const errorMsg = error.response?.data?.error || 'Échec de l\'ordre';
+      const details = error.response?.data?.details;
+      toast.error('Erreur', { description: details ? `${errorMsg} : ${details}` : errorMsg });
     } finally {
       setIsSubmitting(false);
     }
@@ -108,11 +109,10 @@ export function OrderPanel({ currentTicker = 'AAPL' }: OrderPanelProps) {
             <button
               type="button"
               onClick={() => setOrderType('BUY')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold transition-colors ${
-                orderType === 'BUY'
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold transition-colors ${orderType === 'BUY'
                   ? 'bg-green-600 hover:bg-green-700'
                   : 'bg-gray-700 hover:bg-gray-600'
-              }`}
+                }`}
             >
               <ArrowUpCircle className="size-5" />
               Acheter
@@ -120,11 +120,10 @@ export function OrderPanel({ currentTicker = 'AAPL' }: OrderPanelProps) {
             <button
               type="button"
               onClick={() => setOrderType('SELL')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold transition-colors ${
-                orderType === 'SELL'
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold transition-colors ${orderType === 'SELL'
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-gray-700 hover:bg-gray-600'
-              }`}
+                }`}
             >
               <ArrowDownCircle className="size-5" />
               Vendre
@@ -157,18 +156,16 @@ export function OrderPanel({ currentTicker = 'AAPL' }: OrderPanelProps) {
             <button
               type="button"
               onClick={() => setOrderClass('MARKET')}
-              className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
-                orderClass === 'MARKET' ? 'bg-[#0f0f23] text-white shadow' : 'text-gray-400 hover:text-white'
-              }`}
+              className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${orderClass === 'MARKET' ? 'bg-[#0f0f23] text-white shadow' : 'text-gray-400 hover:text-white'
+                }`}
             >
               Au Marché
             </button>
             <button
               type="button"
               onClick={() => setOrderClass('LIMIT')}
-              className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${
-                orderClass === 'LIMIT' ? 'bg-[#0f0f23] text-white shadow' : 'text-gray-400 hover:text-white'
-              }`}
+              className={`flex-1 py-1.5 text-sm rounded-md transition-colors ${orderClass === 'LIMIT' ? 'bg-[#0f0f23] text-white shadow' : 'text-gray-400 hover:text-white'
+                }`}
             >
               Limite
             </button>
@@ -240,17 +237,16 @@ export function OrderPanel({ currentTicker = 'AAPL' }: OrderPanelProps) {
           <button
             type="submit"
             disabled={isSubmitting || !currentPrice}
-            className={`w-full py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              orderType === 'BUY'
+            className={`w-full py-4 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${orderType === 'BUY'
                 ? 'bg-green-600 hover:bg-green-700'
                 : 'bg-red-600 hover:bg-red-700'
-            }`}
+              }`}
           >
             {isSubmitting
               ? 'Exécution en cours...'
               : orderType === 'BUY'
-              ? 'Passer un ordre d\'achat'
-              : 'Passer un ordre de vente'}
+                ? 'Passer un ordre d\'achat'
+                : 'Passer un ordre de vente'}
           </button>
         </form>
       </div>
